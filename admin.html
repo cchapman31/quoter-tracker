@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main id="app" class="page">
+    <div class="page-head">
+      <div>
+        <h1>Admin</h1>
+        <p class="sub">Who can sign in, the quoter list, targets, and bringing in history.</p>
+      </div>
+    </div>
+    <div class="admin-grid">
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head"><h2>People</h2><button class="btn btn-primary" type="button" id="add-user">Add person</button></div>
+          <p class="muted" style="margin:6px 20px 0">Each person signs in with this Google account. Quoters only see their own leads.</p>
+          <div class="table-wrap" style="margin-top:8px"><table id="users"></table></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Quoters</h2><button class="btn" type="button" id="add-quoter">Add quoter</button></div>
+          <p class="muted" style="margin:6px 20px 0">Inactive quoters keep their history but drop off the team summary.</p>
+          <div class="table-wrap" style="margin-top:8px"><table id="quoters"></table></div>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head"><h2>Targets and settings</h2></div>
+          <form class="panel-body settings-list" id="settings" novalidate></form>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Data</h2><a class="btn btn-quiet" id="sheet-link" target="_blank" rel="noopener">Open the database sheet</a></div>
+          <div class="panel-body" id="data"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/common.js"></script>
+  <script src="assets/admin.js"></script>
+</body>
+</html>

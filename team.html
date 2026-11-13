@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main id="app" class="page">
+    <div class="page-head">
+      <div>
+        <h1>Team</h1>
+        <p class="sub" id="sub"></p>
+      </div>
+      <button class="btn" type="button" id="export-leads" hidden>Download leads (CSV)</button>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div class="figures" id="figures"></div>
+
+    <section class="panel" style="margin-top:24px">
+      <div class="panel-head"><h2>Team summary</h2><span class="muted">Select a quoter to see their days, notes and reasons.</span></div>
+      <div class="table-wrap" style="margin-top:8px"><table id="summary"></table></div>
+    </section>
+
+    <section class="panel" style="margin-top:24px">
+      <div class="panel-head"><h2>Team leads per day</h2></div>
+      <div class="panel-body"><div id="team-chart"></div></div>
+    </section>
+
+    <div class="chart-grid" style="margin-top:24px">
+      <section class="panel">
+        <div class="panel-head"><h2>Average eligible per day</h2></div>
+        <div class="panel-body" id="avg-bars"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Why leads were ineligible</h2></div>
+        <div class="panel-body" id="reasons"></div>
+      </section>
+    </div>
+
+    <section class="panel" style="margin-top:24px">
+      <div class="panel-head">
+        <h2>Bonus leads by week</h2>
+        <button class="btn" type="button" id="export-bonus">Download bonus report (CSV)</button>
+      </div>
+      <p class="muted" style="margin:6px 20px 0" id="bonus-rule"></p>
+      <div class="table-wrap" style="margin-top:8px"><table id="bonus"></table></div>
+    </section>
+  </main>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/common.js"></script>
+  <script src="assets/charts.js"></script>
+  <script src="assets/team.js"></script>
+</body>
+</html>

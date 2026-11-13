@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log leads</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main id="app" class="page">
+    <div class="page-head">
+      <div>
+        <h1 id="page-title">Log leads</h1>
+        <p class="sub" id="page-sub">Every lead you work, eligible or not.</p>
+      </div>
+      <label class="field" id="quoter-pick-wrap" hidden>
+        <span>Logging for</span>
+        <select id="quoter-pick"></select>
+      </label>
+    </div>
+
+    <div class="log-grid">
+      <form class="panel log-form" id="lead-form" novalidate autocomplete="off">
+        <h2>Log a lead</h2>
+
+        <label class="field">
+          <span>Prospect full name</span>
+          <input id="f-name" name="name" type="text" required>
+        </label>
+
+        <div class="status-pick" role="radiogroup" aria-label="Status" id="status-pick">
+          <button type="button" role="radio" data-v="Eligible" aria-checked="true">Eligible <small>Alt+1</small></button>
+          <button type="button" role="radio" data-v="Ineligible" aria-checked="false">Ineligible <small>Alt+2</small></button>
+        </div>
+
+        <div class="row">
+          <label class="field">
+            <span>Email <span class="hint" id="email-hint"></span></span>
+            <input id="f-email" name="email" type="email" inputmode="email">
+          </label>
+          <label class="field" id="pdf-field">
+            <span>Quote PDF link</span>
+            <input id="f-pdf" name="pdf" type="url" inputmode="url" placeholder="https://drive.google.com/...">
+          </label>
+        </div>
+
+        <div class="field" id="reason-field" hidden>
+          <label for="f-reason"><span>Why is it ineligible?</span></label>
+          <input id="f-reason" name="reason" type="text" list="reason-list" placeholder="Pick one below or type your own">
+          <datalist id="reason-list"></datalist>
+          <div class="chips" id="reason-chips"></div>
+        </div>
+
+        <div class="form-foot">
+          <label class="date-field" id="date-wrap">Date worked <input id="f-date" type="date" required></label>
+          <button class="btn btn-primary btn-lg" type="submit">Log lead <span class="kbd">Enter</span></button>
+        </div>
+        <p class="err-text" id="form-error" role="alert" hidden></p>
+      </form>
+
+      <section class="panel today" id="today" aria-label="Today's progress"></section>
+    </div>
+
+    <section class="panel" id="fix-panel" style="margin-top:24px" hidden>
+      <div class="list-head">
+        <div class="left">
+          <h2>Needs fixing</h2>
+          <span class="flag" id="fix-count"></span>
+        </div>
+        <span class="muted">These rows are missing a date, email, quote link or reason. They still count once fixed.</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Prospect</th><th>Status</th><th>Missing</th><th class="n"></th></tr></thead>
+          <tbody id="fix-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:24px" id="list-panel">
+      <div class="list-head">
+        <div class="left">
+          <h2 id="list-title">Leads</h2>
+          <span class="day-nav">
+            <button class="btn btn-quiet" type="button" id="prev-day" aria-label="Previous day">&lsaquo;</button>
+            <input type="date" id="list-date" aria-label="Show leads for date">
+            <button class="btn btn-quiet" type="button" id="next-day" aria-label="Next day">&rsaquo;</button>
+          </span>
+          <span class="muted" id="list-count"></span>
+        </div>
+        <input type="search" class="search" id="list-search" placeholder="Search name or email" aria-label="Search leads">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Time</th><th>Prospect</th><th>Status</th><th>Email</th><th>Quote</th><th>Reason</th><th class="n"><span class="sr-only">Actions</span></th></tr>
+          </thead>
+          <tbody id="lead-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/common.js"></script>
+  <script src="assets/log.js"></script>
+</body>
+</html>
