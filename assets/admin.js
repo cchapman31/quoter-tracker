@@ -157,7 +157,8 @@
       eligRateTarget: h('input', { type: 'number', min: 0, max: 100, step: 1, value: Math.round(s.eligRateTarget * 100) }),
       bonusThreshold: h('input', { type: 'number', min: 0, step: 1, value: s.bonusThreshold }),
       trackingStart: h('input', { type: 'date', value: s.trackingStart }),
-      weekendBonus: h('input', { type: 'checkbox', checked: s.weekendBonus }),
+      payPeriodStart: h('input', { type: 'date', value: s.payPeriodStart }),
+      payPeriodDays: h('input', { type: 'number', min: 1, step: 1, value: s.payPeriodDays }),
       quotersSeeTeam: h('input', { type: 'checkbox', checked: s.quotersSeeTeam }),
       reasons: h('textarea', { rows: 7 }),
     };
@@ -168,7 +169,9 @@
       row('Eligible rate target (%)', f.eligRateTarget, null),
       row('Bonus starts after', f.bonusThreshold, 'bonusThreshold'),
       row('Totals start on', f.trackingStart, 'trackingStart')));
-    form.appendChild(h('label', { class: 'check' }, f.weekendBonus, 'Weekend eligible leads all count as bonus'));
+    form.appendChild(h('div', { class: 'form-grid' },
+      row('A pay period starts on', f.payPeriodStart, 'payPeriodStart'),
+      row('Pay period length (days)', f.payPeriodDays, 'payPeriodDays')));
     form.appendChild(h('label', { class: 'check' }, f.quotersSeeTeam, 'Quoters can see the team page (counts only)'));
     form.appendChild(row('Quick-pick ineligible reasons, one per line', f.reasons, null));
     form.appendChild(row('Site name', f.appName, 'appName'));
@@ -181,7 +184,7 @@
         const res = await QT.api('saveSettings', { settings: {
           appName: f.appName.value, dailyTarget: f.dailyTarget.value, eligRateTarget: (Number(f.eligRateTarget.value) / 100),
           bonusThreshold: f.bonusThreshold.value, trackingStart: f.trackingStart.value,
-          weekendBonus: f.weekendBonus.checked, quotersSeeTeam: f.quotersSeeTeam.checked,
+          payPeriodStart: f.payPeriodStart.value, payPeriodDays: f.payPeriodDays.value, quotersSeeTeam: f.quotersSeeTeam.checked,
           reasons: f.reasons.value.split('\n').map(x => x.trim()).filter(Boolean).join('|'),
         } });
         data.settings = res.settings;

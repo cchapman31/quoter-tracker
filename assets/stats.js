@@ -1,10 +1,12 @@
-/* Stats for one quoter: figures, daily chart, week-by-week, reasons, and day-by-day with notes. */
+/* Stats for one quoter: figures, daily chart, week-by-week, reasons, day-by-day with notes, and the lead list. */
 (function () {
   'use strict';
   const { h, $, clear, d: D, fmt, calc } = QT;
   let stats = null;
   let quoter = '';
   let range = null;
+  let rangeCtl = null;
+  const list = { key: '', leads: null, status: 'all', q: '', day: '', limit: 50, fresh: new Set() };
 
   function daysInRange(from, to, rowsByDate) {
     return D.days(from, to).filter(dt => !D.isWeekend(dt) || rowsByDate.has(dt));
@@ -59,11 +61,12 @@
         return out;
       },
     });
-    $('#chart-note').textContent = range.key === 'custom' ? D.full(from) + ' to ' + D.full(to) : '';
+    $('#chart-note').textContent = range.key === 'custom' || range.key === 'pay' ? rangeCtl.label() : '';
 
     renderWeekly(from, to, byDate);
     renderReasons(from, to);
     renderDaily(dates, byDate, notes);
+    loadLeads(false);
   }
 
   function renderWeekly(from, to, byDate) {
@@ -116,7 +119,7 @@
       const noteCell = h('td', { class: 'note-cell' }, note,
         canEdit ? h('button', { class: 'btn btn-quiet', type: 'button', text: note ? 'Edit' : 'Add note', onclick: () => editNote(dt, note) }) : null);
       body.appendChild(h('tr', null,
-        h('td', { text: D.day(dt) }),
+        h('td', null, h('button', { class: 'linkish', type: 'button', text: D.day(dt), title: 'Show the leads for ' + D.day(dt), onclick: () => showDay(dt) })),
         h('td', { class: 'n' }, h('span', { class: 'meter' + (r.e >= s.dailyTarget ? ' full' : ''), 'aria-hidden': 'true' },
           h('i', { style: 'width:' + Math.min(100, (r.e / s.dailyTarget) * 100) + '%' })), fmt.int(r.e)),
         h('td', { class: 'n', text: fmt.int(r.i) }),
@@ -151,6 +154,111 @@
     });
   }
 
+  /* ---------------- lead list (follows the date range at the top) ---------------- */
+
+  async function loadLeads(force) {
+    const key = quoter + '|' + range.from + '|' + range.to;
+    const changed = key !== list.key;
+    if (!changed && !force) { renderLeads(); return; }
+    if (changed) { list.leads = null; list.day = ''; list.limit = 50; }
+    list.key = key;
+    renderLeads();
+    try {
+      const res = await QT.api('leads', { quoter: quoter, from: range.from, to: range.to });
+      if (list.key !== key) return;
+      list.leads = res.leads;
+    } catch (e) {
+      if (list.key !== key) return;
+      list.leads = [];
+      QT.toast(e.message, { kind: 'error' });
+    }
+    renderLeads();
+  }
+
+  function filteredLeads() {
+    const q = list.q.trim().toLowerCase();
+    return (list.leads || []).filter(l =>
+      (!list.day || l.date === list.day) &&
+      (list.status === 'all' || (list.status === 'missing' ? l.missing : l.status === list.status)) &&
+      (!q || l.name.toLowerCase().indexOf(q) >= 0 || (l.email || '').toLowerCase().indexOf(q) >= 0))
+      .sort((a, b) => (b.date + (b.created || '')).localeCompare(a.date + (a.created || '')));
+  }
+
+  function renderLeads() {
+    $('#leads-range').textContent = range.from === range.to ? D.day(range.from) : D.short(range.from) + ' to ' + D.short(range.to) + '.';
+    $('#leads-day').hidden = !list.day;
+    $('#leads-day-text').textContent = list.day ? 'Showing ' + D.day(list.day) + ' only.' : '';
+    QT.$$('#leads-status button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === list.status)));
+    const body = clear($('#leads-body'));
+    if (list.leads === null) {
+      $('#leads-count').textContent = '';
+      body.appendChild(h('tr', null, h('td', { colspan: 8, class: 'empty', text: 'Loading leads...' })));
+      return;
+    }
+    const rows = filteredLeads();
+    rows.slice(0, list.limit).forEach(l => {
+      body.appendChild(QT.leads.row(l, { showDate: true, fresh: list.fresh.has(l.id), onEdit: editLead, onDelete: deleteLead }));
+      list.fresh.delete(l.id);
+    });
+    if (rows.length > list.limit) {
+      const left = rows.length - list.limit;
+      body.appendChild(h('tr', null, h('td', { colspan: 8, class: 'empty' },
+        h('button', { class: 'btn', type: 'button', text: left <= 50 ? 'Show ' + left + ' more' : 'Show 50 more (' + fmt.int(left) + ' not shown)',
+          onclick: () => { list.limit += 50; renderLeads(); } }))));
+    }
+    if (!rows.length) {
+      const filtered = list.q || list.status !== 'all' || list.day;
+      body.appendChild(h('tr', null, h('td', { colspan: 8, class: 'empty',
+        text: filtered ? 'No leads match these filters.' : 'No leads in this date range.' })));
+    }
+    const e = rows.filter(l => l.status === 'Eligible').length;
+    $('#leads-count').textContent = fmt.int(rows.length) + ' leads, ' + fmt.int(e) + ' eligible';
+  }
+
+  function showDay(dt) {
+    list.day = dt;
+    list.limit = 50;
+    renderLeads();
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    $('#leads-panel').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  /** Counts on the page come from stats, so refresh them after a change. */
+  function refreshStats() {
+    QT.api('stats', {}).then(st => { stats = st; render(); }).catch(e => QT.toast(e.message, { kind: 'error' }));
+  }
+
+  function editLead(l) {
+    QT.leads.edit(l, {
+      defaultQuoter: quoter,
+      onSaved: (lead, dups) => {
+        list.leads = (list.leads || []).filter(x => x.id !== lead.id);
+        if (lead.quoter === quoter && lead.date >= range.from && lead.date <= range.to) list.leads.push(lead);
+        list.fresh.add(lead.id);
+        renderLeads();
+        refreshStats();
+        if (dups.length) QT.leads.warnDuplicate(lead, dups);
+      },
+    });
+  }
+
+  function deleteLead(l) {
+    QT.leads.remove(l, {
+      onDeleted: () => {
+        list.leads = (list.leads || []).filter(x => x.id !== l.id);
+        renderLeads();
+        refreshStats();
+      },
+    });
+  }
+
+  function downloadLeads() {
+    const rows = [['Date', 'Quoter', 'Prospect', 'Status', 'Email', 'Quote PDF link', 'Ineligible reason', 'Logged at', 'Missing info']];
+    filteredLeads().slice().reverse().forEach(l =>
+      rows.push([l.date, l.quoter, l.name, l.status, l.email, l.pdf, l.reason, l.created, l.missing ? 'yes' : '']));
+    QT.downloadCsv('leads-' + quoter.replace(/\s+/g, '') + '-' + (list.day || range.from + '-to-' + range.to) + '.csv', rows);
+  }
+
   QT.boot({
     page: 'stats',
     title: 'Stats',
@@ -159,7 +267,12 @@
       stats = await QT.api('stats', {});
       const u = QT.user;
       const filters = $('#filters');
-      range = QT.rangeFilter(filters, { keys: ['week', 'lastweek', 'month', 'start'], initial: 'start', onChange: r => { range = r; render(); } }).get();
+      rangeCtl = QT.rangeFilter(filters, { keys: ['week', 'lastweek', 'month', 'start'], initial: 'start', onChange: r => { range = r; render(); } });
+      range = rangeCtl.get();
+      QT.$$('#leads-status button').forEach(b => b.addEventListener('click', () => { list.status = b.dataset.v; list.limit = 50; renderLeads(); }));
+      $('#leads-search').addEventListener('input', e => { list.q = e.target.value; list.limit = 50; renderLeads(); });
+      $('#leads-day-clear').addEventListener('click', () => { list.day = ''; list.limit = 50; renderLeads(); });
+      $('#leads-csv').addEventListener('click', downloadLeads);
       if (u.role === 'quoter') {
         quoter = u.quoter;
       } else {

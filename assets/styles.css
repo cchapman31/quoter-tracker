@@ -151,6 +151,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: none; border: 1px solid #3a4a51; color: var(--bar-ink);
   border-radius: var(--r-ctl); padding: 5px 10px; cursor: pointer; font-size: 13px;
 }
+.who .theme-btn { display: inline-grid; place-items: center; width: 32px; height: 30px; padding: 0; color: var(--bar-ink-2); }
+.who .theme-btn:hover { color: var(--bar-ink); }
 .who button:hover { border-color: var(--bar-ink-2); }
 .demo-band {
   background: var(--warn-bg); color: var(--warn-ink);
@@ -228,6 +230,8 @@ input[aria-invalid="true"] { border-color: var(--danger); background: var(--dang
 .filters .custom { display: inline-flex; gap: 6px; align-items: center; }
 .filters .custom input { width: 150px; min-height: 36px; padding: 6px 8px; }
 .filters select { width: auto; min-height: 36px; padding: 6px 30px 6px 10px; }
+.filters select.pay-pick { color: var(--ink-2); font-weight: 500; }
+.filters select.pay-pick.active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .check { display: inline-flex; gap: 8px; align-items: center; color: var(--ink-2); cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--ink); }
 
@@ -342,6 +346,13 @@ tr.clickable { cursor: pointer; }
 .day-nav { display: inline-flex; align-items: center; gap: 2px; }
 .day-nav input { width: 150px; min-height: 34px; padding: 5px 8px; }
 .search { width: 220px !important; min-height: 34px !important; padding: 5px 10px !important; }
+.list-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.day-chip { display: flex; align-items: center; gap: 10px; margin: 0 20px 10px; padding: 8px 12px; border-radius: var(--r-ctl); background: var(--surface-2); color: var(--ink-2); font-weight: 500; }
+#leads-body td, #lead-body td { white-space: nowrap; }
+#leads-body td.clip, #lead-body td.clip { max-width: 220px; }
+.linkish { all: unset; cursor: pointer; color: var(--elig); font-weight: 500; }
+.linkish:hover { text-decoration: underline; }
+.linkish:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
 
 /* ---------- figures row (stats + team) ---------- */
 .figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-panel); }

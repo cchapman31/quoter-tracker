@@ -169,34 +169,48 @@
       h('td', { class: 'n sep', text: fmt.int(miss) }), h('td'))));
   }
 
-  /* ---------------- weekly bonus report ---------------- */
+  /* ---------------- bonus report: by pay period or by week ---------------- */
 
+  let bonusBy = 'pay';
+
+  /** Groups (pay periods or Mon-Sun weeks) overlapping the range, newest first, clipped to the range. */
   function bonusTable(quoters, from, to) {
     const s = QT.settings;
-    const weeks = [];
-    for (let m = D.monday(from); m <= to; m = D.add(m, 7)) weeks.push(m);
+    const groups = bonusBy === 'pay'
+      ? QT.pay.list(s, from, to)
+      : (() => { const w = []; for (let m = D.monday(from); m <= to; m = D.add(m, 7)) w.push({ from: m, to: D.add(m, 6) }); return w.reverse(); })();
     const cols = quoters.filter(q => stats.days.some(d => d[0] === q.code && d[1] >= from && d[1] <= to));
-    const grid = weeks.map(m => {
-      const end = D.add(m, 6);
-      const cells = cols.map(q => calc.sum(calc.rows(stats.days, q.code, m > from ? m : from, end < to ? end : to), s).bonus);
-      return { week: m, cells: cells, total: cells.reduce((a, b) => a + b, 0) };
+    const rows = groups.map(g => {
+      const a = g.from > from ? g.from : from;
+      const b = g.to < to ? g.to : to;
+      const cells = cols.map(q => calc.sum(calc.rows(stats.days, q.code, a, b), s).bonus);
+      return { group: g, partial: g.from < from || (g.to > to && to < QT.today), cells: cells, total: cells.reduce((x, y) => x + y, 0) };
     });
-    return { weeks: grid.reverse(), cols: cols };
+    return { rows: rows, cols: cols };
+  }
+
+  function groupLabel(r) {
+    return bonusBy === 'pay' ? QT.pay.label(r.group) : D.short(r.group.from);
   }
 
   function renderBonus(quoters, from, to) {
     const s = QT.settings;
-    $('#bonus-rule').textContent = 'Bonus = eligible leads above ' + s.bonusThreshold + ' on a weekday' +
-      (s.weekendBonus ? ', plus every eligible lead on a weekend' : '') + '. Weeks run Monday to Sunday.';
+    $('#bonus-title').textContent = bonusBy === 'pay' ? 'Bonus leads by pay period' : 'Bonus leads by week';
+    QT.$$('#bonus-by button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === bonusBy)));
+    $('#bonus-rule').textContent = 'Bonus = eligible leads above ' + s.bonusThreshold + ' on a weekday, plus every eligible lead on a Saturday or Sunday. ' +
+      (bonusBy === 'pay' ? 'Pay periods run Saturday to Friday, every ' + QT.pay.len(s) + ' days.' : 'Weeks run Monday to Sunday.');
     const b = bonusTable(quoters, from, to);
     const t = clear($('#bonus'));
-    t.appendChild(h('thead', null, h('tr', null, h('th', { text: 'Week of' }),
+    t.appendChild(h('thead', null, h('tr', null, h('th', { text: bonusBy === 'pay' ? 'Pay period' : 'Week of' }),
       b.cols.map(q => h('th', { class: 'n', title: q.name + ' (' + q.code + ')', text: q.name.split(' ')[0] })), h('th', { class: 'n sep', text: 'Total' }))));
     const body = h('tbody');
-    b.weeks.forEach(w => body.appendChild(h('tr', null, h('td', { text: D.short(w.week) }),
-      w.cells.map(c => h('td', { class: 'n' + (c ? '' : ' muted'), text: fmt.int(c) })), h('td', { class: 'n sep', text: fmt.int(w.total) }))));
+    b.rows.forEach(r => body.appendChild(h('tr', null,
+      h('td', { style: 'white-space:nowrap' }, groupLabel(r),
+        r.partial ? [' ', h('span', { class: 'flag plain', title: 'Only the days inside the selected date range are counted', text: 'partial' })] : null,
+        r.group.from <= QT.today && QT.today <= r.group.to ? [' ', h('span', { class: 'flag plain', text: 'in progress' })] : null),
+      r.cells.map(c => h('td', { class: 'n' + (c ? '' : ' muted'), text: fmt.int(c) })), h('td', { class: 'n sep', text: fmt.int(r.total) }))));
     t.appendChild(body);
-    const colTotals = b.cols.map((_, i) => b.weeks.reduce((a, w) => a + w.cells[i], 0));
+    const colTotals = b.cols.map((_, i) => b.rows.reduce((a, r) => a + r.cells[i], 0));
     t.appendChild(h('tfoot', null, h('tr', null, h('td', { text: 'Total' }),
       colTotals.map(c => h('td', { class: 'n', text: fmt.int(c) })), h('td', { class: 'n sep', text: fmt.int(colTotals.reduce((a, c) => a + c, 0)) }))));
   }
@@ -204,9 +218,10 @@
   function exportBonus() {
     const { from, to } = range;
     const b = bonusTable(visibleQuoters(), from, to);
-    const rows = [['Week of (Monday)'].concat(b.cols.map(q => q.code + ' ' + q.name), ['Total'])];
-    b.weeks.slice().reverse().forEach(w => rows.push([w.week].concat(w.cells, [w.total])));
-    QT.downloadCsv('bonus-leads-' + from + '-to-' + to + '.csv', rows);
+    const rows = [[bonusBy === 'pay' ? 'Pay period start' : 'Week of (Monday)', bonusBy === 'pay' ? 'Pay period end' : 'Week end (Sunday)', 'Partial']
+      .concat(b.cols.map(q => q.code + ' ' + q.name), ['Total'])];
+    b.rows.slice().reverse().forEach(r => rows.push([r.group.from, r.group.to, r.partial ? 'yes' : ''].concat(r.cells, [r.total])));
+    QT.downloadCsv('bonus-leads-by-' + (bonusBy === 'pay' ? 'pay-period' : 'week') + '-' + from + '-to-' + to + '.csv', rows);
   }
 
   async function exportLeads(btn) {
@@ -243,6 +258,7 @@
       cb.addEventListener('change', () => { showInactive = cb.checked; render(); });
       filters.appendChild(h('label', { class: 'check' }, cb, 'Show inactive quoters'));
       $('#export-bonus').addEventListener('click', exportBonus);
+      QT.$$('#bonus-by button').forEach(b => b.addEventListener('click', () => { bonusBy = b.dataset.v; render(); }));
       if (QT.ROLE_RANK[QT.user.role] > 1) {
         const ex = $('#export-leads');
         ex.hidden = false;

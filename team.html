@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <script>try{var t=localStorage.getItem('qt.theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <title>Team</title>
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/fonts/fonts.css">
@@ -45,8 +47,14 @@
 
     <section class="panel" style="margin-top:24px">
       <div class="panel-head">
-        <h2>Bonus leads by week</h2>
-        <button class="btn" type="button" id="export-bonus">Download bonus report (CSV)</button>
+        <h2 id="bonus-title">Bonus leads by pay period</h2>
+        <div class="list-tools">
+          <div class="seg" role="group" aria-label="Group bonus leads by" id="bonus-by">
+            <button type="button" data-v="pay" aria-pressed="true">By pay period</button>
+            <button type="button" data-v="week" aria-pressed="false">By week</button>
+          </div>
+          <button class="btn" type="button" id="export-bonus">Download bonus report (CSV)</button>
+        </div>
       </div>
       <p class="muted" style="margin:6px 20px 0" id="bonus-rule"></p>
       <div class="table-wrap" style="margin-top:8px"><table id="bonus"></table></div>

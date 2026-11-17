@@ -77,13 +77,13 @@
 
   /* ---------------- stats math (same rules as the old sheet) ----------------
    * days rows from the API: [quoter, date, eligible, ineligible, other, missingInfo]
-   * Bonus: on a weekday, eligible above the bonus threshold; on a weekend, every
-   * eligible lead (when the weekendBonus setting is on).
+   * Bonus: on a weekday, eligible leads above the bonus threshold (50); on a
+   * Saturday or Sunday, every eligible lead.
    * Avg eligible/day: eligible divided by days that had at least one lead.
    */
   QT.calc = {
     bonus(e, iso, s) {
-      if (D.isWeekend(iso)) return s.weekendBonus ? e : 0;
+      if (D.isWeekend(iso)) return e;
       return Math.max(0, e - s.bonusThreshold);
     },
     rows(days, quoter, from, to) {
@@ -124,6 +124,36 @@
       month: { label: 'This month', from: D.monthStart(today), to: today },
       start: { label: 'Since start', from: settings.trackingStart, to: today },
     };
+  };
+
+  /**
+   * Pay periods repeat every payPeriodDays (14) from payPeriodStart (Sat, Nov 7, 2026),
+   * so every past and future period is calculated, never typed in.
+   */
+  QT.pay = {
+    len: s => Math.max(1, parseInt(s.payPeriodDays, 10) || 14),
+    startOf(iso, s) {
+      const anchor = D.valid(s.payPeriodStart) ? s.payPeriodStart : '2026-11-07';
+      const diff = Math.round((D.toDate(iso) - D.toDate(anchor)) / 86400000);
+      return D.add(anchor, Math.floor(diff / QT.pay.len(s)) * QT.pay.len(s));
+    },
+    of(iso, s) {
+      const from = QT.pay.startOf(iso, s);
+      return { from: from, to: D.add(from, QT.pay.len(s) - 1) };
+    },
+    /** Periods overlapping first..last, newest first. */
+    list(s, first, last) {
+      const out = [];
+      const stop = QT.pay.startOf(first, s);
+      for (let p = QT.pay.startOf(last, s); p >= stop && out.length < 500; p = D.add(p, -QT.pay.len(s))) {
+        out.push({ from: p, to: D.add(p, QT.pay.len(s) - 1) });
+      }
+      return out;
+    },
+    label(p) {
+      const sameYear = p.from.slice(0, 4) === p.to.slice(0, 4);
+      return (sameYear ? D.short(p.from) : D.full(p.from)) + ' – ' + D.full(p.to);
+    },
   };
 
   QT.quoterName = function (code) {
@@ -348,6 +378,32 @@
 
   /* ---------------- top bar + boot ---------------- */
 
+  /* ---------------- light / dark switch ---------------- */
+
+  function currentTheme() {
+    const t = document.documentElement.getAttribute('data-theme');
+    if (t === 'dark' || t === 'light') return t;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  QT.setTheme = function (t) {
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('qt.theme', t); } catch (e) { /* storage blocked */ }
+    const b = document.querySelector('.theme-btn');
+    if (b) b.replaceWith(themeButton());
+  };
+  function themeButton() {
+    const dark = currentTheme() === 'dark';
+    const label = dark ? 'Switch to light mode' : 'Switch to dark mode';
+    const icon = dark
+      ? QT.s('svg', { viewBox: '0 0 24 24', width: 18, height: 18, 'aria-hidden': 'true' },
+        QT.s('circle', { cx: 12, cy: 12, r: 4.2, fill: 'currentColor' }),
+        QT.s('path', { d: 'M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', fill: 'none' }))
+      : QT.s('svg', { viewBox: '0 0 24 24', width: 18, height: 18, 'aria-hidden': 'true' },
+        QT.s('path', { d: 'M20.2 14.6A8.5 8.5 0 0 1 9.4 3.8a8.5 8.5 0 1 0 10.8 10.8z', fill: 'currentColor' }));
+    return QT.h('button', { type: 'button', class: 'theme-btn', 'aria-label': label, title: label,
+      onclick: () => QT.setTheme(dark ? 'light' : 'dark') }, icon);
+  }
+
   function brand() {
     const mark = QT.h('span', { class: 'brand-mark', 'aria-hidden': 'true' });
     for (let i = 0; i < 10; i++) mark.appendChild(QT.h('i', { class: i < 7 ? 'on' : '' }));
@@ -371,10 +427,13 @@
         links.map(l => QT.h('a', { href: l[1], 'aria-current': l[0] === page ? 'page' : null, text: l[2] }))));
       const label = u.role === 'quoter' ? QT.quoterName(u.quoter) : (u.name || u.email);
       inner.appendChild(QT.h('div', { class: 'who' },
+        themeButton(),
         u.picture ? QT.h('img', { src: u.picture, alt: '', referrerpolicy: 'no-referrer' }) : null,
         QT.h('span', { class: 'name-text' }, QT.h('strong', { text: label }),
           u.role !== 'quoter' ? QT.h('span', { text: ' ' + u.role }) : null),
         QT.h('button', { type: 'button', text: 'Sign out', onclick: QT.signOut })));
+    } else {
+      inner.appendChild(QT.h('div', { class: 'who', style: 'margin-left:auto' }, themeButton()));
     }
     bar.appendChild(inner);
     if (DEMO && QT.demo) bar.after(demoBand());
@@ -448,10 +507,16 @@
    * rangeFilter(container, { keys, initial, onChange }) -> { get() }
    */
   QT.rangeFilter = function (container, o) {
-    const presets = QT.ranges(QT.today, QT.settings);
+    const s = QT.settings;
+    const presets = QT.ranges(QT.today, s);
     const url = new URLSearchParams(location.search);
+    const payRange = start => {
+      const p = QT.pay.of(start, s);
+      return { key: 'pay', from: p.from, to: p.to < QT.today ? p.to : QT.today, periodTo: p.to };
+    };
     let cur;
-    if (D.valid(url.get('from')) && D.valid(url.get('to'))) cur = { key: 'custom', from: url.get('from'), to: url.get('to') };
+    if (D.valid(url.get('pay'))) cur = payRange(url.get('pay'));
+    else if (D.valid(url.get('from')) && D.valid(url.get('to'))) cur = { key: 'custom', from: url.get('from'), to: url.get('to') };
     else {
       const k = presets[url.get('range')] && o.keys.indexOf(url.get('range')) >= 0 ? url.get('range') : o.initial;
       cur = { key: k, from: presets[k].from, to: presets[k].to };
@@ -465,6 +530,16 @@
         apply();
       } }));
     });
+    const current = QT.pay.startOf(QT.today, s);
+    const first = s.trackingStart && s.trackingStart < current ? s.trackingStart : current;
+    const pay = QT.h('select', { class: 'pay-pick', 'aria-label': 'Pay period' },
+      QT.h('option', { value: '', text: 'Pay period' }),
+      QT.pay.list(s, first, QT.today).map(p => QT.h('option', { value: p.from, text: QT.pay.label(p) + (p.from === current ? ' (current)' : '') })));
+    pay.addEventListener('change', () => {
+      if (!pay.value) return;
+      cur = payRange(pay.value);
+      apply();
+    });
     const onCustom = () => {
       if (!D.valid(from.value) || !D.valid(to.value)) return;
       cur = { key: 'custom', from: from.value <= to.value ? from.value : to.value, to: from.value <= to.value ? to.value : from.value };
@@ -474,17 +549,27 @@
     to.addEventListener('change', onCustom);
     function sync() {
       QT.$$('button', seg).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === cur.key)));
+      if (cur.key === 'pay' && !pay.querySelector('option[value="' + cur.from + '"]')) {
+        pay.appendChild(QT.h('option', { value: cur.from, text: QT.pay.label({ from: cur.from, to: cur.periodTo }) }));
+      }
+      pay.value = cur.key === 'pay' ? cur.from : '';
+      pay.classList.toggle('active', cur.key === 'pay');
       from.value = cur.from; to.value = cur.to;
       const p = new URLSearchParams(location.search);
-      p.delete('range'); p.delete('from'); p.delete('to');
-      if (cur.key === 'custom') { p.set('from', cur.from); p.set('to', cur.to); } else p.set('range', cur.key);
+      p.delete('range'); p.delete('from'); p.delete('to'); p.delete('pay');
+      if (cur.key === 'custom') { p.set('from', cur.from); p.set('to', cur.to); } else if (cur.key === 'pay') p.set('pay', cur.from); else p.set('range', cur.key);
       history.replaceState(null, '', location.pathname + '?' + p.toString());
     }
     function apply() { sync(); o.onChange(cur); }
     container.appendChild(seg);
+    container.appendChild(pay);
     container.appendChild(QT.h('span', { class: 'custom' }, from, QT.h('span', { class: 'muted', text: 'to' }), to));
     sync();
-    return { get: () => cur, label: () => (cur.key === 'custom' ? D.short(cur.from) + ' to ' + D.short(cur.to) : presets[cur.key].label) };
+    return {
+      get: () => cur,
+      label: () => (cur.key === 'custom' ? D.short(cur.from) + ' to ' + D.short(cur.to) :
+        cur.key === 'pay' ? 'Pay period ' + QT.pay.label({ from: cur.from, to: cur.periodTo }) : presets[cur.key].label),
+    };
   };
 
   QT.setParam = function (k, v) {

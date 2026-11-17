@@ -2,10 +2,12 @@
 (function () {
   'use strict';
   const { h, $, clear, d: D, fmt } = QT;
+  const { statusMark, fieldError, validate } = QT.leads;
 
   const state = {
     quoter: '',
-    weekLeads: [],     // this quoter's leads, Monday..today
+    recentFrom: '',    // earliest of this Monday and the start of this pay period
+    weekLeads: [],     // this quoter's leads, recentFrom..today
     listLeads: null,   // leads for listDate when it's outside this week
     listDate: '',
     missing: [],
@@ -71,7 +73,7 @@
 
   function addKnownLead(lead) {
     if (lead.quoter !== state.quoter) return;
-    if (lead.date >= D.monday(QT.today) && lead.date <= QT.today) state.weekLeads.push(lead);
+    if (lead.date >= state.recentFrom && lead.date <= QT.today) state.weekLeads.push(lead);
     if (state.listLeads && lead.date === state.listDate) state.listLeads.push(lead);
     if (lead.missing) state.missing.push(lead);
   }
@@ -86,11 +88,7 @@
   }
 
   function warnDuplicate(lead, dups) {
-    const d0 = dups[0];
-    const who = d0.quoter === lead.quoter ? 'this quoter' : QT.quoterName(d0.quoter);
-    const msg = 'Possible duplicate: ' + d0.name + ' was already logged by ' + who +
-      (d0.date ? ' on ' + D.day(d0.date) : '') + (dups.length > 1 ? ' (and ' + (dups.length - 1) + ' more)' : '') + '.';
-    QT.toast(msg, { kind: 'warn', timeout: 12000, action: { label: 'Undo', fn: () => deleteLead(lead, true) } });
+    QT.leads.warnDuplicate(lead, dups, () => deleteLead(lead, true));
   }
 
   /* ---------------- form ---------------- */
@@ -106,11 +104,6 @@
     clearErrors();
   }
 
-  function fieldError(input, msg) {
-    input.setAttribute('aria-invalid', 'true');
-    const p = h('p', { class: 'err-text', text: msg });
-    (input.closest('.field') || input.parentNode).appendChild(p);
-  }
   function clearErrors() {
     QT.$$('#lead-form [aria-invalid]').forEach(i => i.removeAttribute('aria-invalid'));
     QT.$$('#lead-form .field .err-text').forEach(p => p.remove());
@@ -127,21 +120,6 @@
       pdf: state.status === 'Eligible' ? els.pdf.value.trim() : '',
       reason: state.status === 'Ineligible' ? els.reason.value.trim() : '',
     };
-  }
-
-  /** Same rules the backend enforces; checked here so mistakes show instantly. */
-  function validate(lead, inputs) {
-    const errs = [];
-    if (!D.valid(lead.date)) errs.push([inputs.date, 'Pick the date you worked this lead.']);
-    if (!lead.name) errs.push([inputs.name, "Enter the prospect's full name."]);
-    if (lead.email && !/^[^@\s]+@[^@\s]+$/.test(lead.email)) errs.push([inputs.email, 'That email address looks incomplete.']);
-    if (lead.status === 'Eligible') {
-      if (!lead.email) errs.push([inputs.email, 'Eligible leads need an email.']);
-      if (!/^https?:\/\//i.test(lead.pdf)) errs.push([inputs.pdf, 'Paste the quote PDF link (starts with https://).']);
-    } else if (!lead.reason) {
-      errs.push([inputs.reason, 'Pick or type a reason.']);
-    }
-    return errs;
   }
 
   function onSubmit(ev) {
@@ -204,7 +182,7 @@
     box.appendChild(punch);
     lastPunch = filled;
 
-    const bonus = weekend ? (s.weekendBonus ? c.e : 0) : Math.max(0, c.e - s.bonusThreshold);
+    const bonus = QT.calc.bonus(c.e, today, s);
     if (bonus > 0) {
       const strip = h('div', { class: 'punch', 'aria-hidden': 'true' });
       for (let k = 0; k < Math.min(bonus, 30); k++) strip.appendChild(h('i', { class: 'bonus' }));
@@ -215,8 +193,9 @@
     const total = c.e + c.i;
     const rate = total ? c.e / total : null;
     const rateOk = rate !== null && rate >= s.eligRateTarget;
+    const pp = QT.pay.of(today, s);
     const wk = { e: 0, bonus: 0 };
-    D.days(D.monday(today), today).forEach(day => {
+    D.days(pp.from, today).forEach(day => {
       const x = counts(day);
       wk.e += x.e;
       wk.bonus += QT.calc.bonus(x.e, day, s);
@@ -226,8 +205,8 @@
       h('div', { class: 'fact' }, h('b', { class: 'num', text: fmt.pct(rate, 0) }),
         h('span', null, 'eligible rate ',
           rate === null ? null : h('span', { class: rateOk ? 'ok' : 'low', text: rateOk ? '✓ on target' : '↓ under ' + fmt.pct(s.eligRateTarget, 0) }))),
-      h('div', { class: 'fact' }, h('b', { class: 'num', text: String(wk.e) }),
-        h('span', { text: 'this week' + (wk.bonus ? ', ' + wk.bonus + ' bonus' : '') }))));
+      h('div', { class: 'fact', title: 'Pay period ' + QT.pay.label(pp) }, h('b', { class: 'num', text: String(wk.e) }),
+        h('span', { text: 'this pay period, ' + wk.bonus + ' bonus' }))));
 
     // Note for the day
     const ta = h('textarea', { id: 'day-note', rows: 2, maxlength: 1000, placeholder: 'Anything that slowed you down? For example: not enough leads, internet outage.' });
@@ -254,7 +233,7 @@
     state.showAll = false;
     els.listDate.value = v;
     els.nextDay.disabled = v >= QT.today;
-    const inWeek = v >= D.monday(QT.today) && v <= QT.today;
+    const inWeek = v >= state.recentFrom && v <= QT.today;
     state.listLeads = inWeek ? null : [];
     if (!inWeek) {
       QT.busy($('#list-panel'), async () => {
@@ -309,21 +288,8 @@
     $('#list-count').textContent = n ? n + ' leads, ' + e + ' eligible' : '';
   }
 
-  function statusMark(s) {
-    return h('span', { class: 'st ' + (s === 'Eligible' ? 'elig' : s === 'Ineligible' ? 'inelig' : ''), text: s || 'No status' });
-  }
-
   function leadRow(l) {
-    const tr = h('tr', { class: state.freshIds.has(l.id) ? 'is-new' : '' },
-      h('td', { class: 'num muted', text: l.source === 'import' ? '' : D.time(l.created) }),
-      h('td', null, l.name, l.missing ? [' ', h('span', { class: 'flag', text: 'Missing info' })] : null),
-      h('td', null, statusMark(l.status)),
-      h('td', { class: 'clip', text: l.email }),
-      h('td', null, l.pdf ? h('a', { class: 'link', href: l.pdf, target: '_blank', rel: 'noopener noreferrer', text: 'Open PDF' }) : ''),
-      h('td', { class: 'clip', text: l.reason, title: l.reason }),
-      h('td', { class: 'actions' },
-        h('button', { class: 'btn btn-quiet', type: 'button', text: 'Edit', onclick: () => editLead(l) }),
-        h('button', { class: 'btn btn-quiet btn-danger', type: 'button', text: 'Delete', 'aria-label': 'Delete ' + l.name, onclick: () => deleteLead(l) })));
+    const tr = QT.leads.row(l, { fresh: state.freshIds.has(l.id), onEdit: editLead, onDelete: l2 => deleteLead(l2) });
     state.freshIds.delete(l.id);
     return tr;
   }
@@ -335,12 +301,7 @@
     $('#fix-count').textContent = rows.length + (rows.length === 1 ? ' row' : ' rows');
     const body = clear($('#fix-body'));
     rows.slice(0, 200).forEach(l => {
-      const what = [];
-      if (!l.date) what.push('date');
-      if (!l.status) what.push('status');
-      if (l.status === 'Eligible' && !l.email) what.push('email');
-      if (l.status === 'Eligible' && !l.pdf) what.push('quote link');
-      if (l.status === 'Ineligible' && !l.reason) what.push('reason');
+      const what = QT.leads.missingWhat(l);
       body.appendChild(h('tr', null,
         h('td', { text: l.date ? D.day(l.date) : 'No date' }),
         h('td', { text: l.name }),
@@ -358,70 +319,20 @@
 
   /* ---------------- edit / delete ---------------- */
 
-  function leadFields(l) {
-    const f = {
-      date: h('input', { type: 'date', value: l.date || '' }),
-      name: h('input', { type: 'text', value: l.name || '' }),
-      status: h('select', null, ['Eligible', 'Ineligible'].map(s => h('option', { value: s, text: s, selected: l.status === s }))),
-      email: h('input', { type: 'email', value: l.email || '' }),
-      pdf: h('input', { type: 'url', value: l.pdf || '' }),
-      reason: h('input', { type: 'text', value: l.reason || '', list: 'reason-list' }),
-    };
-    const pdfWrap = h('label', { class: 'field' }, h('span', { text: 'Quote PDF link' }), f.pdf);
-    const reasonWrap = h('label', { class: 'field' }, h('span', { text: 'Ineligible reason' }), f.reason);
-    const sync = () => { pdfWrap.hidden = f.status.value !== 'Eligible'; reasonWrap.hidden = f.status.value === 'Eligible'; };
-    f.status.addEventListener('change', sync);
-    if (!l.status) f.status.value = l.pdf ? 'Eligible' : 'Ineligible';
-    sync();
-    const body = h('div', null,
-      h('div', { class: 'row' },
-        h('label', { class: 'field' }, h('span', { text: 'Prospect full name' }), f.name),
-        h('label', { class: 'field' }, h('span', { text: 'Date worked' }), f.date)),
-      h('div', { class: 'row' },
-        h('label', { class: 'field' }, h('span', { text: 'Status' }), f.status),
-        h('label', { class: 'field' }, h('span', { text: 'Email' }), f.email)),
-      pdfWrap, reasonWrap);
-    const read = () => ({
-      quoter: l.quoter || state.quoter, date: f.date.value, name: f.name.value.trim().replace(/\s+/g, ' '), status: f.status.value,
-      email: f.email.value.trim(), pdf: f.status.value === 'Eligible' ? f.pdf.value.trim() : '', reason: f.status.value === 'Ineligible' ? f.reason.value.trim() : '',
-    });
-    const check = () => {
-      QT.$$('.err-text', body).forEach(p => p.remove());
-      QT.$$('[aria-invalid]', body).forEach(i => i.removeAttribute('aria-invalid'));
-      const errs = validate(read(), f);
-      errs.forEach(e => fieldError(e[0], e[1]));
-      if (errs.length) errs[0][0].focus();
-      return !errs.length;
-    };
-    return { body: body, read: read, check: check };
-  }
-
   function editLead(l) {
-    const form = leadFields(l);
-    QT.dialog({
-      title: 'Edit lead',
-      body: form.body,
-      actions: [
-        { label: 'Cancel' },
-        {
-          label: 'Save changes', kind: 'btn-primary', submit: true, fn: async () => {
-            if (!form.check()) return false;
-            try {
-              const res = await QT.api('updateLead', { id: l.id, lead: form.read() });
-              replaceKnownLead(res.lead);
-              state.freshIds.add(res.lead.id);
-              render();
-              QT.toast('Saved changes to ' + res.lead.name + '.');
-              if (res.duplicates && res.duplicates.length) warnDuplicate(res.lead, res.duplicates);
-            } catch (e) { QT.toast(e.message, { kind: 'error' }); return false; }
-          },
-        },
-      ],
+    QT.leads.edit(l, {
+      defaultQuoter: state.quoter,
+      onSaved: (lead, dups) => {
+        replaceKnownLead(lead);
+        state.freshIds.add(lead.id);
+        render();
+        if (dups.length) warnDuplicate(lead, dups);
+      },
     });
   }
 
   function editPending(p) {
-    const form = leadFields(p.lead);
+    const form = QT.leads.fields(p.lead, state.quoter);
     QT.dialog({
       title: 'Fix and retry',
       body: form.body,
@@ -444,15 +355,11 @@
     saveOutbox(); render();
   }
 
-  async function deleteLead(l, skipConfirm) {
-    if (!skipConfirm && !(await QT.confirm('Delete this lead?', l.name + ' (' + l.status + ', ' + D.day(l.date || QT.today) + ') will be deleted. The audit log keeps a copy.', 'Delete lead'))) return;
-    try {
-      await QT.api('deleteLead', { id: l.id });
-      removeKnownLead(l.id);
-      lastPunch = -1;
-      render();
-      QT.toast('Deleted ' + l.name + '.');
-    } catch (e) { QT.toast(e.message, { kind: 'error' }); }
+  function deleteLead(l, skipConfirm) {
+    return QT.leads.remove(l, {
+      skipConfirm: skipConfirm,
+      onDeleted: () => { removeKnownLead(l.id); lastPunch = -1; render(); },
+    });
   }
 
   /* ---------------- load ---------------- */
@@ -461,8 +368,10 @@
     state.quoter = code;
     lastPunch = -1;
     const today = QT.today;
+    const payStart = QT.pay.startOf(today, QT.settings);
+    state.recentFrom = payStart < D.monday(today) ? payStart : D.monday(today);
     const [week, missing, stats] = await Promise.all([
-      QT.api('leads', { quoter: code, from: D.monday(today), to: today }),
+      QT.api('leads', { quoter: code, from: state.recentFrom, to: today }),
       QT.api('leads', { quoter: code, missingOnly: true }),
       QT.api('stats', {}),
     ]);

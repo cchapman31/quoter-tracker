@@ -21,7 +21,7 @@
 
   const settings = {
     appName: 'Remote Quoter Tracker', dailyTarget: 50, eligRateTarget: 0.65, bonusThreshold: 50,
-    weekendBonus: true, trackingStart: start, quotersSeeTeam: false,
+    payPeriodStart: '2026-11-07', payPeriodDays: 14, trackingStart: start, quotersSeeTeam: false,
     reasons: ['Mobile home', 'Existing customer', 'Fireline score', 'Wildfire exposure', 'Claims', 'Apartment',
       'Bad address', 'No home info', 'Condo / townhouse', 'Commercial property', 'Vacant land', 'Bad name',
       'Contact opt-out', 'Past due premium', 'DOB missing', 'Home condition', 'Coverage or zip limit', 'Duplicate', 'System error'],
@@ -206,8 +206,9 @@
         users: users.slice(), quoters: quoters.map(q => ({ code: q.code, name: q.name, active: q.active })), settings: Object.assign({}, settings),
         settingHelp: {
           appName: 'Name shown at the top of the site', dailyTarget: 'Eligible leads each quoter should log per weekday',
-          eligRateTarget: 'Target eligible rate. 0.65 means 65%', bonusThreshold: 'Eligible leads above this number on a weekday count as bonus leads',
-          weekendBonus: 'Every eligible lead logged on a Saturday or Sunday counts as a bonus lead', trackingStart: 'First day of the "since start" totals',
+          eligRateTarget: 'Target eligible rate. 0.65 means 65%', bonusThreshold: 'Eligible leads above this number on a weekday count as bonus leads. Every eligible lead on a Saturday or Sunday is always a bonus lead',
+          payPeriodStart: 'First day of any one pay period. Every earlier and later period is worked out from it', payPeriodDays: 'Days in each pay period',
+          trackingStart: 'First day of the "since start" totals',
           quotersSeeTeam: 'Quoters can open the team page (lead counts only, no prospect details)', reasons: 'Quick-pick ineligible reasons on the log form, one per line',
         },
         counts: { leads: leads.length, imported: 0, fromSite: leads.length, missing: leads.filter(isMissing).length },
@@ -254,9 +255,9 @@
       Object.keys(s).forEach(k => {
         if (!(k in settings)) return;
         let v = s[k];
-        if (k === 'dailyTarget' || k === 'bonusThreshold') v = parseInt(v, 10);
+        if (k === 'dailyTarget' || k === 'bonusThreshold' || k === 'payPeriodDays') v = parseInt(v, 10);
         if (k === 'eligRateTarget') { v = parseFloat(String(v).replace('%', '')); if (v > 1) v = v / 100; }
-        if (k === 'weekendBonus' || k === 'quotersSeeTeam') v = v === true || v === 'true';
+        if (k === 'quotersSeeTeam') v = v === true || v === 'true';
         if (k === 'reasons' && typeof v === 'string') v = v.split('|');
         settings[k] = v;
       });

@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <script>try{var t=localStorage.getItem('qt.theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
   <title>My stats</title>
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/fonts/fonts.css">
@@ -38,13 +40,46 @@
     </div>
 
     <section class="panel" style="margin-top:24px">
-      <div class="panel-head"><h2>Day by day</h2><span class="muted">Notes explain slow days, for example no leads available.</span></div>
+      <div class="panel-head"><h2>Day by day</h2><span class="muted">Select a date to see that day's leads. Notes explain slow days.</span></div>
       <div class="table-wrap" style="margin-top:8px"><table id="daily"></table></div>
+    </section>
+
+    <section class="panel" style="margin-top:24px" id="leads-panel">
+      <div class="list-head">
+        <div class="left">
+          <h2>Leads</h2>
+          <span class="muted" id="leads-range"></span>
+          <span class="muted" id="leads-count"></span>
+        </div>
+        <div class="list-tools">
+          <div class="seg" role="group" aria-label="Show" id="leads-status">
+            <button type="button" data-v="all" aria-pressed="true">All</button>
+            <button type="button" data-v="Eligible" aria-pressed="false">Eligible</button>
+            <button type="button" data-v="Ineligible" aria-pressed="false">Ineligible</button>
+            <button type="button" data-v="missing" aria-pressed="false">Missing info</button>
+          </div>
+          <input type="search" class="search" id="leads-search" placeholder="Search name or email" aria-label="Search leads">
+          <button class="btn" type="button" id="leads-csv">Download CSV</button>
+        </div>
+      </div>
+      <div class="day-chip" id="leads-day" hidden>
+        <span id="leads-day-text"></span>
+        <button class="btn btn-quiet" type="button" id="leads-day-clear">Show the whole range</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Time</th><th>Prospect</th><th>Status</th><th>Email</th><th>Quote</th><th>Reason</th><th class="n"><span class="sr-only">Actions</span></th></tr>
+          </thead>
+          <tbody id="leads-body"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
   <script src="assets/config.js"></script>
   <script src="assets/common.js"></script>
+  <script src="assets/leads.js"></script>
   <script src="assets/charts.js"></script>
   <script src="assets/stats.js"></script>
 </body>

@@ -31,6 +31,7 @@ admin.html          People, quoters, targets, copying in history
 assets/
   config.js         ← your Google client ID + Apps Script URL go here
   common.js         Sign-in, API calls, shared date/stats math
+  leads.js          The lead list, edit and delete (shared by Log leads and Quoter stats)
   log.js stats.js team.js admin.js   One script per page
   charts.js         The charts
   demo.js           Made-up data for demo mode
@@ -151,13 +152,28 @@ On the day you switch:
 email + quote link or a reason, press **Enter**. The form clears instantly and the lead saves in
 the background. If the internet drops, unsaved leads wait on that computer and retry; nothing
 typed is lost. A warning appears if the same email (or the same name on the same day) was
-already logged, with an Undo button. **Needs fixing** lists any rows missing info.
+already logged, with an Undo button. The Today panel shows eligible leads and bonus leads so far
+this pay period. **Needs fixing** lists any rows missing info.
+
+**Quoter stats / My stats:** figures, a daily chart, week-by-week totals, ineligible reasons,
+day-by-day notes, and the **lead list** for the chosen date range. Filter the list to Eligible,
+Ineligible or Missing info, search by name or email, edit or delete a lead, or download the list
+as a CSV. Select a date in the day-by-day table to see only that day's leads.
 
 **Managers (Team):** pick a date range. The summary table matches the old Team Summary tab;
-click a quoter for their day-by-day numbers, notes and reasons. **Download bonus report** gives
-the weekly bonus leads per quoter as a CSV; **Download leads** exports every lead in the range.
+click a quoter for their stats and leads. **Bonus leads** can be grouped by pay period or by week;
+**Download bonus report** gives that table as a CSV, and **Download leads** exports every lead in
+the range.
 
-**Admins (Admin):** add or remove people, mark quoters inactive, change targets, copy history.
+**Date ranges:** every date filter has quick picks (This week, Last week, This month, Since
+start), a **Pay period** picker, and a custom From/To range.
+
+**Light or dark:** the sun/moon button in the top bar switches between light and dark. Until
+someone uses it, the site follows their computer's setting; after that it remembers their
+choice on that browser.
+
+**Admins (Admin):** add or remove people, mark quoters inactive, change targets and the pay
+period schedule, copy history.
 
 ## How the numbers work
 
@@ -166,15 +182,20 @@ Same rules as the old sheet:
 - **Eligible / Ineligible**: count of leads with that status on that date.
 - **Eligible rate**: eligible ÷ (eligible + ineligible). Target 65%.
 - **Eligible per day**: eligible ÷ days with at least one lead logged. Target 50.
-- **Bonus leads**: on a weekday, eligible above 50; on a weekend, every eligible lead.
-  Weekly bonus covers Monday to Sunday.
+- **Bonus leads**: on a weekday (Monday to Friday), every eligible lead above 50 that day; on a
+  Saturday or Sunday, every eligible lead. Ineligible leads never count toward bonus.
+- **Pay periods**: 14 days, Saturday to Friday, starting Saturday, Nov 7, 2026 (Nov 7 – Nov 20,
+  Nov 21 – Dec 4, and so on). Every past and future period is calculated from that start, so
+  nothing needs adding as time goes on. If the schedule ever changes, update *A pay period
+  starts on* and *Pay period length* on the Admin page.
 - **Rows missing info**: eligible without email or quote link, ineligible without a reason, or
   no date.
 - **Today** follows the database sheet's time zone. A new sheet uses your Google account's time
   zone; the old Lead Log used Pacific time. Change it under *File → Settings* in the database
   sheet if you want "today" to roll over at a different midnight.
 
-Targets, the bonus threshold and the start date are editable on the Admin page.
+Targets, the bonus threshold, the start date and the pay period schedule are editable on the
+Admin page.
 
 **One deliberate difference from the old Team Summary:** six tabs (JS 3, 5, 11, 14, 16, 17)
 have an extra column, so the old summary read the wrong columns for them. It showed 0 for
@@ -185,6 +206,19 @@ other figure matches the old summary exactly.
 Ineligible reasons in the old sheet were free text (over 200 spellings). The form now offers
 standard picks, and the reasons chart groups the copied text into the same categories (e.g.
 "mobile/manufactured home" counts as *Mobile home*). The original text is kept unchanged.
+
+## Updating a site that's already set up
+
+When you get a new version of this repo:
+
+1. **Backend:** open the database sheet's **Extensions → Apps Script**, replace all of `Code.gs`
+   with the new `apps-script/Code.gs`, click **Save**, then **Deploy → Manage deployments →
+   pencil icon → Version: New version → Deploy**. The `/exec` URL stays the same.
+2. **Site:** upload the changed files to the GitHub repo, keeping your own `assets/config.js`.
+   GitHub Pages republishes within a minute or two. Ask people to refresh the page.
+
+New settings (like the pay period schedule) use their defaults until an admin changes them on
+the Admin page; nothing else needs doing.
 
 ## Changing the backend later
 
